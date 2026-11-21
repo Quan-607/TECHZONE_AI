@@ -14,15 +14,15 @@ app = FastAPI(title="TechZone AI API")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "http://127.0.0.1:5500",
         "http://localhost:5500",
+        "http://127.0.0.1:5500",
+        "http://localhost:5501",
         "http://127.0.0.1:5501",
-        "http://localhost:5501"
-        "https://quan-607.github.io"
+        "https://quan-607.github.io",
     ],
     allow_credentials=False,
-    allow_methods=["GET", "POST"],
-    allow_headers=["Content-Type"]
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # Lưu các phiên chat trong bộ nhớ
