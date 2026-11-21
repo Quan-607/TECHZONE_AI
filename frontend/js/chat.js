@@ -1,6 +1,5 @@
-
-const API_URL = "http://127.0.0.1:8001/chat";
-const PRODUCT_API_URL = "http://127.0.0.1:8001";
+const API_URL = "https://techzone-ai-api.onrender.com/chat";
+const PRODUCT_API_URL = "https://techzone-ai-api.onrender.com";
 
 // Lấy các thành phần HTML
 const chatMessages = document.getElementById("chat-messages");
