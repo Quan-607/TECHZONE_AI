@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Trò chuyện với TechZone AI để tìm thiết bị công nghệ phù hợp với nhu cầu của bạn.">
+    <title>TechZone AI | Trợ lý tư vấn mua sắm</title>
+
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="../css/chat.css">
+</head>
+<body>
+    <div class="top-strip">TechZone · Khám phá thiết bị công nghệ phù hợp với nhu cầu của bạn</div>
+
+    <header class="site-header">
+        <nav class="navbar navbar-expand-lg">
+            <div class="container">
+                <a class="navbar-brand d-flex align-items-center" href="index.html" aria-label="TechZone trang chủ">
+                    <span class="brand-mark">T</span>
+                    TechZone<span class="brand-dot">.</span>
+                </a>
+
+                <button class="navbar-toggler" type="button" data-bs-toggle="collapse"
+                        data-bs-target="#mainNavigation" aria-controls="mainNavigation"
+                        aria-expanded="false" aria-label="Mở menu">
+                    <span class="navbar-toggler-icon"></span>
+                </button>
+
+                <div class="collapse navbar-collapse" id="mainNavigation">
+                    <ul class="navbar-nav ms-auto align-items-lg-center">
+                        <li class="nav-item"><a class="nav-link" href="index.html">Trang chủ</a></li>
+                        <li class="nav-item"><a class="nav-link" href="products.html">Sản phẩm</a></li>
+                        <li class="nav-item"><a class="nav-link active" href="chat.html" aria-current="page">Tư vấn AI</a></li>
+                        <li class="nav-item"><a class="nav-link cart-link" href="cart.html">Giỏ hàng</a></li>
+                    </ul>
+                    <a class="btn btn-primary nav-cta ms-lg-3 mt-3 mt-lg-0" href="#chat-area">Bắt đầu trò chuyện</a>
+                </div>
+            </div>
+        </nav>
+    </header>
+
+    <main class="chat-page">
+        <section class="chat-intro">
+            <div class="container">
+                <div class="intro-kicker"><span class="intro-spark">✦</span> TRỢ LÝ MUA SẮM THÔNG MINH</div>
+                <h1>Trò chuyện cùng <span>TechZone AI</span></h1>
+                <p>Chia sẻ nhu cầu và ngân sách của bạn. Mình sẽ giúp bạn tìm ra những lựa chọn phù hợp.</p>
+            </div>
+        </section>
+
+        <section class="container chat-container" id="chat-area">
+            <div class="chat-layout">
+                <div class="chat-card">
+                    <div class="chat-card-header">
+                        <div class="assistant-avatar">✦</div>
+                        <div class="assistant-heading">
+                            <h2>TechZone AI Assistant</h2>
+                            <div class="assistant-status"><span class="online-dot"></span> Sẵn sàng tư vấn</div>
+                        </div>
+                        <span class="assistant-tag">AI SHOPPING</span>
+                    </div>
+
+                    <div class="card-body chat-body" id="chat-messages">
+                        <div class="message bot">
+                            <div class="message-content">
+                                Xin chào! Mình là TechZone AI.
+                                Bạn đang tìm điện thoại, laptop, tai nghe hay phụ kiện công nghệ nào?
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="suggestions-area">
+                        <div class="suggestions-heading">Gợi ý để bắt đầu</div>
+                        <div class="suggestions-list">
+                            <button class="suggestion-btn" type="button" data-message="Tư vấn laptop dưới 20 triệu">💻 Laptop dưới 20 triệu</button>
+                            <button class="suggestion-btn" type="button" data-message="Gợi ý tai nghe gaming">🎧 Tai nghe gaming</button>
+                            <button class="suggestion-btn" type="button" data-message="Tư vấn chuột không dây">🖱️ Chuột không dây</button>
+                        </div>
+                    </div>
+
+                    <div class="chat-composer">
+                        <form id="chat-form">
+                            <div class="composer-row">
+                                <input type="text" id="message-input" class="form-control"
+                                       placeholder="Nhập nhu cầu của bạn..." autocomplete="off" required>
+                                <button class="btn btn-primary" type="submit" id="send-button">
+                                    Gửi <span aria-hidden="true">➤</span>
+                                </button>
+                            </div>
+                        </form>
+                        <small class="chat-disclaimer">TechZone AI có thể đưa ra thông tin chưa chính xác. Vui lòng kiểm tra thông tin sản phẩm trước khi quyết định.</small>
+                    </div>
+                </div>
+
+                <aside class="chat-side-note">
+                    <div class="side-note-icon">✦</div>
+                    <h3>Tư vấn theo cách của bạn</h3>
+                    <p>Bạn không cần biết trước mọi thông số. Chỉ cần nói điều bạn đang cần, TechZone AI sẽ hỏi thêm khi cần thiết.</p>
+                    <div class="side-note-divider"></div>
+                    <div class="side-note-point"><span>01</span><div><strong>Nói nhu cầu</strong><small>Học tập, làm việc, giải trí...</small></div></div>
+                    <div class="side-note-point"><span>02</span><div><strong>Chọn ưu tiên</strong><small>Ngân sách, thương hiệu, tính năng.</small></div></div>
+                    <div class="side-note-point"><span>03</span><div><strong>Xem gợi ý</strong><small>Tham khảo sản phẩm phù hợp.</small></div></div>
+                </aside>
+            </div>
+        </section>
+    </main>
+
+    <footer class="site-footer">
+        <div class="container d-flex flex-wrap justify-content-between align-items-center gap-2">
+            <div class="footer-brand">TechZone<span>.</span></div>
+            <div class="footer-copy">Công nghệ phù hợp với nhu cầu của bạn.</div>
+            <a href="index.html">← Quay về trang chủ</a>
+        </div>
+    </footer>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="../js/cart.js"></script>
+    <script src="../js/chat.js"></script>
+</body>
+</html>
