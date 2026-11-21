@@ -239,7 +239,7 @@ def tim_san_pham(
     thuong_hieu=None,
     ram_toi_thieu=None,
     customer_profile=None,
-    limit=3,
+    limit=5,
 ):
     """Lấy sản phẩm còn hàng, lọc HARD, ưu tiên SOFT rồi sắp giá tăng dần.
 
@@ -291,9 +291,9 @@ def tim_san_pham(
     ket_qua.sort(key=lambda product: _soft_preference_key(product, effective_profile))
 
     try:
-        result_limit = max(1, min(int(limit), 3))
+        result_limit = max(1, min(int(limit), 5))
     except (TypeError, ValueError):
-        result_limit = 3
+        result_limit = 5
 
     return ket_qua[:result_limit]
 
@@ -301,7 +301,7 @@ def tim_san_pham(
 def tim_san_pham_thay_the(
     danh_muc: str,
     customer_profile: dict | None = None,
-    limit: int = 3,
+    limit: int = 5,
 ) -> list[dict]:
     """Tìm lựa chọn gần nhất khi không có kết quả khớp đủ HARD.
 
@@ -357,7 +357,7 @@ def tim_san_pham_thay_the(
     # Ưu tiên ít điều kiện HARD chưa khớp nhất, sau đó theo SOFT và giá.
     candidates.sort(key=lambda item: (item[0], item[1]))
     try:
-        result_limit = max(1, min(int(limit), 3))
+        result_limit = max(1, min(int(limit), 5))
     except (TypeError, ValueError):
-        result_limit = 3
+        result_limit = 5
     return [item[2] for item in candidates[:result_limit]]

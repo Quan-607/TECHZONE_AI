@@ -78,7 +78,7 @@ Trả lời bằng tiếng Việt, thân thiện, tự nhiên, ngắn gọn và 
 CÁCH HOẠT ĐỘNG
 - Python đã trích xuất và cập nhật Customer Profile, đồng thời trực tiếp chạy tìm kiếm khi cần.
 - Bạn KHÔNG tự tuyên bố đã tìm sản phẩm nếu phần KẾT QUẢ XỬ LÝ TỪ PYTHON không ghi search_performed=true.
-- Khi search_performed=true và có sản phẩm, hãy giới thiệu ngay trong tin nhắn tối đa 3 sản phẩm tiêu biểu.
+- Khi search_performed=true và có sản phẩm, hãy giới thiệu ngay trong tin nhắn tối đa 5 sản phẩm tiêu biểu.
 - Mỗi sản phẩm trình bày: tên, giá, một vài thông số có dữ liệu và lý do phù hợp với nhu cầu khách.
 - Không nhắc website hiển thị thẻ sản phẩm; giao diện chat chỉ hiển thị nội dung tin nhắn AI.
 - Khi so sánh, chỉ dùng các sản phẩm trong kết quả gần nhất Python cung cấp. Nếu khách gọi tên sản phẩm không có trong danh sách, nói rõ chưa có dữ liệu để đối chiếu và đề nghị tìm sản phẩm đó trước.
@@ -94,8 +94,9 @@ CUSTOMER PROFILE
 - Không nói rằng đã cập nhật tiêu chí nếu Python không xác nhận cập nhật thành công.
 
 GIỎ HÀNG
-- Nếu khách muốn thêm sản phẩm vào giỏ, chỉ dùng công cụ suggest_add_to_cart với product_id có trong dữ liệu sản phẩm được cung cấp.
-- Công cụ chỉ tạo đề xuất chờ khách xác nhận trên website. Không nói đã thêm vào giỏ trước khi khách xác nhận.
+- Python là nơi duy nhất được phép tạo đề xuất thêm giỏ hàng sau khi xác thực ý định và sản phẩm.
+- Không tự gọi công cụ thêm giỏ hàng. Chỉ xác nhận đề xuất nếu Python báo cart_result.success=true.
+- Chỉ xem là yêu cầu thêm giỏ khi khách thể hiện rõ ý định mua/thêm/đặt sản phẩm; việc hỏi thông tin hoặc nhắc tên sản phẩm KHÔNG phải yêu cầu thêm giỏ.
 
 SO SÁNH
 - Nếu khách yêu cầu so sánh, chỉ sử dụng dữ liệu sản phẩm được Python cung cấp trong phần ngữ cảnh.
@@ -120,7 +121,11 @@ Schema:
       "excluded_values": []
     }
   ],
-  "question": "một câu hỏi ngắn nếu cần hỏi thêm"
+  "question": "một câu hỏi ngắn nếu cần hỏi thêm",
+  "product_reference": {
+    "type": "ORDINAL|NAME|LAST_MENTIONED|NONE|UNCLEAR",
+    "value": "số thứ tự hoặc tên sản phẩm hoặc null"
+  }
 }
 
 Quy tắc nhận diện:
@@ -149,6 +154,11 @@ Quy tắc nhận diện:
 13. Nếu khách yêu cầu so sánh kết quả gần nhất: intent=COMPARE. Nếu muốn thêm vào giỏ: intent=CART.
 14. Nếu không liên quan tư vấn sản phẩm, intent=GENERAL.
 15. Không được ghi updates rỗng cho một tiêu chí chưa được nhắc tới. Không tự chuyển thông tin riêng danh mục sang shared.
+16. Luôn đọc NGỮ CẢNH SẢN PHẨM GẦN NHẤT để hiểu các cách nói như "cái đầu", "con đó", "mẫu vừa nãy", "nó", "cái ASUS". Nếu xác định được, trả product_reference tương ứng.
+17. Với "cái đầu", "con đầu", "mẫu đầu tiên" thì type=ORDINAL, value=1. Tương tự các thứ tự khác trong danh sách.
+18. Nếu gọi tên sản phẩm cụ thể thì type=NAME, value là tên đủ rõ. Nếu "nó/con đó/mẫu vừa nãy" chỉ một sản phẩm vừa được nhắc rõ trong hội thoại, dùng LAST_MENTIONED.
+19. Nếu có nhiều sản phẩm có thể được nhắc đến và không đủ căn cứ chọn một, dùng UNCLEAR. Không đoán.
+20. Chỉ đặt intent=CART khi khách thực sự yêu cầu thêm/đặt/mua sản phẩm. Hỏi thông số, đánh giá, so sánh hoặc chỉ nhắc tên sản phẩm không phải CART.
 """.strip()
 
 
@@ -172,6 +182,7 @@ def _parse_json_response(raw_text: str) -> dict:
 
 def _plain_text(value: Any) -> str:
     text = str(value or "").strip().casefold()
+    text = text.replace("đ", "d")
     text = unicodedata.normalize("NFKD", text)
     return "".join(char for char in text if not unicodedata.combining(char))
 
@@ -205,11 +216,16 @@ def _extract_customer_intent(phien_chat: dict, tin_nhan: str) -> dict:
     ) or "(Chưa có hội thoại trước đó)"
     profile_text = json.dumps(state.get("customer_profile", {}), ensure_ascii=False)
     active_category = state.get("customer_profile", {}).get("active_category")
+    last_search = state.get("last_search") or {}
+    recent_products = _product_context(last_search.get("products") or [])
 
     prompt = f"""HỒ SƠ HIỆN TẠI (JSON):
 {profile_text}
 
 DANH MỤC ĐANG HOẠT ĐỘNG: {active_category or 'chưa có'}
+
+DANH SÁCH SẢN PHẨM CỦA LẦN TÌM GẦN NHẤT (JSON, đúng thứ tự hiển thị):
+{json.dumps(recent_products, ensure_ascii=False)}
 
 HỘI THOẠI GẦN ĐÂY:
 {history_text}
@@ -269,67 +285,111 @@ def _product_context(products: list[dict]) -> list[dict]:
         for product in products
     ]
 
-def _chon_san_pham_gio_hang(tin_nhan: str, products: list[dict]):
-    """Xác định sản phẩm khách muốn thêm từ kết quả tìm kiếm gần nhất."""
-
-    if not products:
-        return None, 1, "Chưa có danh sách sản phẩm để chọn."
-
+def _chon_san_pham_gio_hang(
+    tin_nhan: str,
+    products: list[dict],
+    product_reference: dict | None = None,
+    history: list[dict] | None = None,
+):
+    """Chọn sản phẩm bằng tham chiếu ngữ cảnh đã được Gemini trích xuất và Python xác thực."""
     text = _plain_text(tin_nhan)
-
-    # Nhận diện số lượng khách muốn thêm.
-    quantity_match = re.search(
-        r"\b(\d+)\s*(?:cai|chiec|san pham|sp)\b",
-        text
-    )
+    quantity_match = re.search(r"\b(\d+)\s*(?:cai|chiec|san pham|sp)\b", text)
     quantity = int(quantity_match.group(1)) if quantity_match else 1
 
-    # Nhận diện thứ tự sản phẩm.
-    ordinal_map = {
-        "dau tien": 1,
-        "thu nhat": 1,
-        "so mot": 1,
-        "thu hai": 2,
-        "thu ba": 3,
-        "thu tu": 4,
-        "thu nam": 5,
-    }
-
-    selected_index = None
-
-    for phrase, number in ordinal_map.items():
-        if phrase in text:
-            selected_index = number
-            break
-
-    if selected_index is None:
-        match = re.search(r"\b(?:thu|so|mau)\s*(\d+)\b", text)
-        if match:
-            selected_index = int(match.group(1))
-
-    if selected_index is not None:
-        if 1 <= selected_index <= len(products):
-            return products[selected_index - 1], quantity, None
-
-        return None, quantity, (
-            f"Danh sách hiện chỉ có {len(products)} sản phẩm. "
-            "Bạn hãy chọn lại thứ tự sản phẩm."
-        )
-
-    # Nếu khách gọi đúng tên sản phẩm.
-    for product in products:
-        name = _plain_text(product.get("name", ""))
-        if name and name in text:
-            return product, quantity, None
-
-    # Chỉ tự chọn khi danh sách có đúng một sản phẩm.
-    if len(products) == 1:
-        return products[0], quantity, None
-
-    return None, quantity, (
-        "Bạn muốn thêm sản phẩm nào vào giỏ hàng? "
-        "Hãy cho mình biết tên hoặc thứ tự sản phẩm nhé."
+    # Dự phòng cho cách nói thứ tự rõ ràng; không dùng để suy ra ý định CART.
+    ordinal_patterns = (
+        (r"\b(?:cai|con|mau|san pham)\s+dau(?: tien)?\b|\bdau tien\b", 1),
+        (r"\b(?:cai|con|mau|san pham)\s+thu nhat\b", 1),
+        (r"\b(?:cai|con|mau|san pham)?\s*thu hai\b", 2),
+        (r"\b(?:cai|con|mau|san pham)?\s*thu ba\b", 3),
+        (r"\b(?:cai|con|mau|san pham)?\s*thu tu\b", 4),
+        (r"\b(?:cai|con|mau|san pham)?\s*thu nam\b", 5),
     )
+    if not isinstance(product_reference, dict) or product_reference.get("type") in {None, "NONE"}:
+        for pattern, number in ordinal_patterns:
+            if re.search(pattern, text):
+                product_reference = {"type": "ORDINAL", "value": number}
+                break
+
+    selected, error = _resolve_product_reference(product_reference, products, history)
+    return selected, quantity, error
+
+
+def _resolve_product_reference(
+    reference: dict | None,
+    products: list[dict],
+    history: list[dict] | None = None,
+) -> tuple[dict | None, str | None]:
+    """Đối chiếu tham chiếu do Gemini hiểu với danh sách sản phẩm thật của lần tìm gần nhất."""
+    if not products:
+        return None, "Hiện chưa có danh sách sản phẩm gần nhất để xác định mẫu bạn đang nhắc tới."
+
+    reference = reference if isinstance(reference, dict) else {}
+    ref_type = str(reference.get("type", "NONE") or "NONE").strip().upper()
+    value = reference.get("value")
+
+    if ref_type == "ORDINAL":
+        try:
+            index = int(value)
+        except (TypeError, ValueError):
+            return None, "Mình chưa xác định được thứ tự sản phẩm bạn muốn nói."
+        if 1 <= index <= len(products):
+            return products[index - 1], None
+        return None, f"Danh sách gần nhất hiện có {len(products)} sản phẩm, bạn chọn lại thứ tự nhé."
+
+    if ref_type == "NAME":
+        query = _plain_text(value)
+        if query:
+            matches = [
+                product for product in products
+                if query in _plain_text(product.get("name", ""))
+                or _plain_text(product.get("name", "")) in query
+            ]
+            if len(matches) == 1:
+                return matches[0], None
+            if len(matches) > 1:
+                return None, "Có nhiều sản phẩm gần giống cách gọi đó. Bạn cho mình biết tên đầy đủ hoặc thứ tự nhé."
+
+    if ref_type == "LAST_MENTIONED":
+        history = history or []
+        assistant_text = "\n".join(
+            str(item.get("content", "")) for item in history[-6:]
+            if item.get("role") == "assistant"
+        )
+        normalized_history = _plain_text(assistant_text)
+        mentions = []
+        for product in products:
+            name = _plain_text(product.get("name", ""))
+            position = normalized_history.rfind(name) if name else -1
+            if position >= 0:
+                mentions.append((position, product))
+        if mentions:
+            mentions.sort(key=lambda item: item[0], reverse=True)
+            if len(mentions) == 1 or mentions[0][0] > mentions[1][0]:
+                return mentions[0][1], None
+
+    if ref_type == "NONE" and len(products) == 1:
+        return products[0], None
+
+    return None, "Mình chưa chắc bạn đang nhắc đến sản phẩm nào. Bạn cho mình biết tên hoặc thứ tự sản phẩm nhé."
+
+
+def _fallback_ordinal_reference(message: str) -> dict | None:
+    """Dự phòng cho đại từ thứ tự phổ biến nếu mô hình bỏ sót tham chiếu."""
+    text = _plain_text(message)
+    patterns = (
+        (r"\b(?:cai|con|mau|san pham)\s+dau(?: tien)?\b|\bdau tien\b", 1),
+        (r"\b(?:cai|con|mau|san pham)\s+thu nhat\b", 1),
+        (r"\b(?:cai|con|mau|san pham)?\s*thu hai\b", 2),
+        (r"\b(?:cai|con|mau|san pham)?\s*thu ba\b", 3),
+        (r"\b(?:cai|con|mau|san pham)?\s*thu tu\b", 4),
+        (r"\b(?:cai|con|mau|san pham)?\s*thu nam\b", 5),
+    )
+    for pattern, number in patterns:
+        if re.search(pattern, text):
+            return {"type": "ORDINAL", "value": number}
+    return None
+
 
 def _normalize_category(category: str | None) -> str | None:
     if not category:
@@ -671,7 +731,6 @@ def tao_phien_chat():
         model=MODEL_NAME,
         config=types.GenerateContentConfig(
             system_instruction=SYSTEM_INSTRUCTION,
-            tools=[suggest_add_to_cart],
         ),
     )
 
@@ -699,20 +758,13 @@ def gui_tin_nhan(phien_chat, tin_nhan):
     intent = str(extraction.get("intent", "GENERAL")).strip().upper()
     if intent not in {"SEARCH", "ASK", "UPDATE", "COMPARE", "CART", "GENERAL"}:
         intent = "GENERAL"
-    # Bắt yêu cầu thêm giỏ hàng bằng Python để tránh Gemini bỏ sót.
-    cart_phrases = (
-        "them vao gio",
-        "them vao gio hang",
-        "cho vao gio",
-        "cho vao gio hang",
-        "them san pham",
-        "mua san pham nay",
-    )
-
-    normalized_message = _plain_text(tin_nhan)
-
-    if any(phrase in normalized_message for phrase in cart_phrases):
-        intent = "CART"
+    # Ý định CART do Gemini xác định từ toàn bộ ngữ cảnh; Python chỉ xác thực sản phẩm.
+    product_reference = extraction.get("product_reference")
+    if (
+        not isinstance(product_reference, dict)
+        or product_reference.get("type") in {"NONE", None}
+    ):
+        product_reference = _fallback_ordinal_reference(tin_nhan) or product_reference
     category = _normalize_category(extraction.get("category"))
     if not category:
         category = state["customer_profile"].get("active_category")
@@ -772,10 +824,18 @@ def gui_tin_nhan(phien_chat, tin_nhan):
     cart_result = None
     cart_selection_error = None
 
+    is_product_followup = (
+        intent == "ASK"
+        and isinstance(product_reference, dict)
+        and product_reference.get("type") not in {"NONE", None}
+    )
     search_requested = (
-        bool(extraction.get("should_search"))
-        or intent == "SEARCH"
-        or _contains_search_language(tin_nhan)
+        not is_product_followup
+        and (
+            bool(extraction.get("should_search"))
+            or intent == "SEARCH"
+            or _contains_search_language(tin_nhan)
+        )
     )
 
     answered_clarification = bool(
@@ -784,15 +844,33 @@ def gui_tin_nhan(phien_chat, tin_nhan):
 
     last_search = state.get("last_search") or {}
     last_products = last_search.get("products") or []
+    if last_search.get("category") and category and last_search.get("category") != category:
+        last_products = []
 
     comparison_available = bool(last_products)
+    referenced_product = None
+    reference_error = None
+    if (
+        isinstance(product_reference, dict)
+        and product_reference.get("type") not in {"NONE", None}
+    ):
+        referenced_product, reference_error = _resolve_product_reference(
+            product_reference,
+            last_products,
+            state.get("conversation_history", []),
+        )
 
     if intent == "CART":
         # Không đưa lại danh sách 5 sản phẩm lên giao diện.
         state["products"] = []
 
         selected_product, quantity, selection_error = (
-            _chon_san_pham_gio_hang(tin_nhan, last_products)
+            _chon_san_pham_gio_hang(
+                tin_nhan,
+                last_products,
+                product_reference=product_reference,
+                history=state.get("conversation_history", []),
+            )
         )
 
         if selected_product:
@@ -838,7 +916,8 @@ def gui_tin_nhan(phien_chat, tin_nhan):
             state["awaiting_criteria"] = True
 
     elif intent == "ASK":
-        state["awaiting_criteria"] = True
+        if referenced_product is None:
+            state["awaiting_criteria"] = True
 
     elif intent == "UPDATE":
         pass
@@ -856,7 +935,11 @@ def gui_tin_nhan(phien_chat, tin_nhan):
         "cart_result": cart_result,
         "cart_selection_error": cart_selection_error,
         "products_found": len(products) if search_performed else None,
-        "products_for_reference": _product_context(products),
+        "products_for_reference": _product_context(
+            [referenced_product] if intent == "ASK" and referenced_product else
+            (products if products else last_products if intent == "COMPARE" else [])
+        ),
+        "referenced_product_error": reference_error,
         "search_mode": (state.get("last_search") or {}).get("search_mode"),
         "comparison_available": comparison_available,
         "clarifying_question": str(extraction.get("question", "") or "").strip(),
@@ -871,10 +954,12 @@ KẾT QUẢ XỬ LÝ TỪ PYTHON (DỮ LIỆU TIN CẬY):
 {json.dumps(action_context, ensure_ascii=False)}
 
 Hãy trả lời khách bằng tiếng Việt, tự nhiên và ngắn gọn theo kết quả trên.
-- Nếu search_performed=true và products_found > 0: giới thiệu tối đa 3 sản phẩm đầu tiên trong products_for_reference ngay trong tin nhắn. Với mỗi sản phẩm, ghi tên, giá, các thông số quan trọng có dữ liệu và một lý do ngắn gọn gắn với nhu cầu khách. Không bịa thông số hoặc lý do không được dữ liệu hỗ trợ.
+- Nếu search_performed=true và products_found > 0: giới thiệu tối đa 5 sản phẩm đầu tiên trong products_for_reference ngay trong tin nhắn. Với mỗi sản phẩm, ghi tên, giá, các thông số quan trọng có dữ liệu và một lý do ngắn gọn gắn với nhu cầu khách. Không bịa thông số hoặc lý do không được dữ liệu hỗ trợ.
 - Nếu search_performed=true và products_found=0: nói chưa có sản phẩm còn hàng trong danh mục.
-- Nếu search_performed=true và search_mode=alternative: nói rõ KHÔNG có sản phẩm đáp ứng đủ mọi điều kiện bắt buộc; tối đa 3 mẫu được nêu chỉ là lựa chọn tham khảo gần nhất. Dựa vào alternative_mismatches để chỉ rõ từng mẫu lệch tiêu chí nào; tuyệt đối không gọi chúng là sản phẩm đáp ứng đầy đủ yêu cầu. Không tự ý sửa hồ sơ khách.
-- Nếu intent=ASK: hỏi một câu ngắn theo clarifying_question; nếu câu đó trống, hãy hỏi ngân sách hoặc mục đích sử dụng.
+- Nếu search_performed=true và search_mode=alternative: nói rõ KHÔNG có sản phẩm đáp ứng đủ mọi điều kiện bắt buộc; tối đa 5 mẫu được nêu chỉ là lựa chọn tham khảo gần nhất. Dựa vào alternative_mismatches để chỉ rõ từng mẫu lệch tiêu chí nào; tuyệt đối không gọi chúng là sản phẩm đáp ứng đầy đủ yêu cầu. Không tự ý sửa hồ sơ khách.
+- Nếu intent=ASK và products_for_reference có một sản phẩm: trả lời trực tiếp câu hỏi dựa trên dữ liệu sản phẩm đó, không hỏi lại ngân sách.
+- Nếu intent=ASK và referenced_product_error có nội dung: nói ngắn gọn rằng chưa xác định được mẫu đang nhắc tới và hỏi tên/thứ tự.
+- Nếu intent=ASK và không có sản phẩm tham chiếu: hỏi một câu ngắn theo clarifying_question; nếu câu đó trống, hãy hỏi ngân sách hoặc mục đích sử dụng.
 - Nếu intent=UPDATE: xác nhận ngắn gọn những trường đã cập nhật; không nói đã tìm kiếm.
 - Nếu intent=COMPARE và comparison_available=true: so sánh các sản phẩm trong products_for_reference. Nếu khách nêu tên cụ thể, chỉ so sánh những mẫu tương ứng; nếu không, chọn tối đa 3 mẫu tiêu biểu. Nêu khác biệt về giá và thông số có dữ liệu; không bịa thông số thiếu. Nếu search_mode=alternative, nhắc rõ đây là các lựa chọn tham khảo chưa chắc đạt đủ tiêu chí bắt buộc. Trình bày bằng tiêu đề và gạch đầu dòng dễ đọc; không dùng bảng Markdown vì giao diện chat hiển thị văn bản thuần.
 - Nếu intent=COMPARE và comparison_available=false: hỏi khách muốn so sánh những sản phẩm nào hoặc đề nghị tìm sản phẩm trước.
